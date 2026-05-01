@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'screens/home_screen.dart';
+import 'screens/app_shell.dart';
 import 'adapters/subject_adapter.dart';
 import 'adapters/lecture_adapter.dart';
 import 'adapters/content_adapter.dart';
@@ -26,10 +26,18 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Smart Study App',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        scaffoldBackgroundColor: Colors.grey[50],
+        appBarTheme: const AppBarTheme(elevation: 0, centerTitle: true),
+        cardTheme: CardTheme(
+          color: Colors.white,
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          margin: EdgeInsets.zero,
+        ),
       ),
-      home: const HomeScreen(),
+      home: const AppShell(),
     );
   }
 }

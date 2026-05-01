@@ -11,40 +11,84 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final subjects = ref.watch(subjectProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Subjects')),
-      body: subjects.isEmpty
-          ? Container(
-              alignment: Alignment.center,
-              child: const Text('No subjects yet. Add one!'),
-            )
-          : ListView.builder(
-              itemCount: subjects.length,
-              itemBuilder: (context, index) {
-                final subject = subjects[index];
-                return ListTile(
-                  title: Text(subject.name),
-                  subtitle: Text(subject.description),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => LectureScreen(subject: subject),
-                      ),
-                    );
-                  },
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () async {
-                      await ref.read(subjectProvider.notifier).deleteSubject(subject.id);
-                    },
-                  ),
-                );
-              },
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Subjects',
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddDialog(context, ref),
-        child: const Icon(Icons.add),
+            const SizedBox(height: 12),
+            Expanded(
+              child: subjects.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No subjects yet. Add one to start studying.',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: subjects.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final subject = subjects[index];
+                        return Card(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16.0),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => LectureScreen(subject: subject),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          subject.name,
+                                          style: Theme.of(context).textTheme.titleMedium,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          subject.description,
+                                          style: Theme.of(context).textTheme.bodyMedium,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () async {
+                                      await ref.read(subjectProvider.notifier).deleteSubject(subject.id);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => _showAddDialog(context, ref),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Subject'),
+            ),
+          ],
+        ),
       ),
     );
   }

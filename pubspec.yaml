@@ -36,6 +36,25 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.6
 
+  # State management: Declarative and efficient for handling app state (subjects, lectures, progress).
+  flutter_riverpod: ^2.5.1
+
+  # Local storage: NoSQL database for persisting subjects, lectures, and user data offline.
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # File paths: Provides access to app directories for storing Hive data securely.
+  path_provider: ^2.1.3
+
+  # PDF handling: For viewing, rendering, and managing PDF content in lectures.
+  pdf: ^3.10.7
+
+  # Translation: Integrates with translation APIs for the translation feature.
+  translator: ^1.0.0
+
+  # HTTP requests: For API calls (e.g., external summarization services or translation if needed).
+  http: ^1.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

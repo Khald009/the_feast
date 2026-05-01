@@ -1,6 +1,22 @@
 import 'package:hive/hive.dart';
 import '../models/user_progress.dart';
 
+/// Safely parse Hive-deserialized sentence accuracies into typed map.
+/// Handles null, non-map, and mixed numeric types (int/double).
+/// Returns null if result is empty, supporting backward compatibility.
+Map<String, double>? parseSentenceAccuracies(dynamic rawData) {
+  if (rawData == null) return null;
+  if (rawData is! Map) return null;
+
+  final result = <String, double>{};
+  rawData.forEach((key, value) {
+    if (key is String && value is num) {
+      result[key] = value.toDouble();
+    }
+  });
+  return result.isEmpty ? null : result;
+}
+
 class UserProgressAdapter extends TypeAdapter<UserProgress> {
   @override
   final int typeId = 4;
@@ -11,6 +27,7 @@ class UserProgressAdapter extends TypeAdapter<UserProgress> {
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
+
     return UserProgress(
       id: fields[0] as String,
       lectureId: fields[1] as String,
@@ -19,7 +36,7 @@ class UserProgressAdapter extends TypeAdapter<UserProgress> {
       mistakesCount: fields[4] as int,
       lastAccuracy: fields[5] as double? ?? 0.0,
       totalAttempts: fields[6] as int? ?? 0,
-      sentenceAccuracies: fields[7] as Map<String, dynamic>?,
+      sentenceAccuracies: parseSentenceAccuracies(fields[7]),
       additionalData: fields[8] as Map<String, dynamic>?,
     );
   }
@@ -48,4 +65,3 @@ class UserProgressAdapter extends TypeAdapter<UserProgress> {
       ..write(obj.additionalData);
   }
 }
-

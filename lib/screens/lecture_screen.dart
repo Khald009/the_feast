@@ -8,7 +8,8 @@ import '../providers/lecture_provider.dart';
 import '../providers/content_provider.dart';
 import '../providers/mistake_provider.dart';
 import '../providers/user_progress_provider.dart';
-import 'study_screen.dart';
+import '../providers/derived_providers.dart';
+import '../core/navigation/navigation_helper.dart';
 
 class LectureScreen extends ConsumerWidget {
   final Subject subject;
@@ -17,13 +18,7 @@ class LectureScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final allLectures = ref.watch(lectureProvider);
-    final lectures = allLectures
-        .where((lecture) => lecture.subjectId == subject.id)
-        .toList();
-    final allContents = ref.watch(contentProvider);
-    final allMistakes = ref.watch(mistakeProvider);
-    final allProgress = ref.watch(userProgressProvider);
+    final lectures = ref.watch(lecturesBySubjectProvider(subject.id));
 
     return Scaffold(
       appBar: AppBar(title: Text(subject.name)),
@@ -37,15 +32,12 @@ class LectureScreen extends ConsumerWidget {
               itemCount: lectures.length,
               itemBuilder: (context, index) {
                 final lecture = lectures[index];
-                final lectureContents = allContents
-                    .where((c) => c.lectureId == lecture.id && c.type == ContentType.text)
-                    .toList();
-                final lectureMistakes = allMistakes
-                    .where((m) => m.lectureId == lecture.id)
-                    .toList();
-                final lectureProgress = allProgress.where((p) => p.lectureId == lecture.id).isEmpty
-                    ? null
-                    : allProgress.where((p) => p.lectureId == lecture.id).first;
+                final lectureContents =
+                    ref.watch(textContentsByLectureProvider(lecture.id));
+                final lectureMistakes =
+                    ref.watch(lectureMistakesProvider(lecture.id));
+                final lectureProgress =
+                    ref.watch(lectureProgressProvider(lecture.id));
                 return ExpansionTile(
                   title: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -57,13 +49,16 @@ class LectureScreen extends ConsumerWidget {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 4),
-                      LinearProgressIndicator(value: lectureProgress?.progress ?? 0),
+                      LinearProgressIndicator(
+                          value: lectureProgress?.progress ?? 0),
                     ],
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete),
                     onPressed: () async {
-                      await ref.read(lectureProvider.notifier).deleteLecture(lecture.id);
+                      await ref
+                          .read(lectureProvider.notifier)
+                          .deleteLecture(lecture.id);
                     },
                   ),
                   children: [
@@ -79,10 +74,13 @@ class LectureScreen extends ConsumerWidget {
                             onTap: () async {
                               if (lectureContents.isNotEmpty) {
                                 final increment = 1.0 / lectureContents.length;
-                                await ref.read(userProgressProvider.notifier).updateProgress(lecture.id, increment);
+                                await ref
+                                    .read(userProgressProvider.notifier)
+                                    .updateProgress(lecture.id, increment);
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Progress updated')),
+                                    const SnackBar(
+                                        content: Text('Progress updated')),
                                   );
                                 }
                               }
@@ -90,30 +88,27 @@ class LectureScreen extends ConsumerWidget {
                             trailing: IconButton(
                               icon: const Icon(Icons.flag),
                               tooltip: 'Mark as Mistake',
-                              onPressed: () => _showMarkMistakeDialog(context, ref, lecture.id, content.data),
+                              onPressed: () => _showMarkMistakeDialog(
+                                  context, ref, lecture.id, content.data),
                             ),
                           )),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0, vertical: 8.0),
                       child: ElevatedButton(
-                        onPressed: () => _showAddContentDialog(context, ref, lecture.id),
+                        onPressed: () =>
+                            _showAddContentDialog(context, ref, lecture.id),
                         child: const Text('Add Text Content'),
                       ),
                     ),
                     if (lectureContents.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 8.0),
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => StudyScreen(
-                                  lecture: lecture,
-                                  contents: lectureContents,
-                                ),
-                              ),
-                            );
+                            NavigationHelper.openStudyScreen(
+                                context, lecture, lectureContents);
                           },
                           child: const Text('Study Mode'),
                         ),
@@ -128,17 +123,21 @@ class LectureScreen extends ConsumerWidget {
                     ),
                     if (lectureMistakes.isEmpty)
                       const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 8.0),
                         child: Text('No mistakes tracked for this lecture.'),
                       )
                     else
                       ...lectureMistakes.map((mistake) => ListTile(
                             title: Text(mistake.description),
-                            subtitle: Text('Added: ${mistake.date.toLocal().toIso8601String()}'),
+                            subtitle: Text(
+                                'Added: ${mistake.date.toLocal().toIso8601String()}'),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () async {
-                                await ref.read(mistakeProvider.notifier).deleteMistake(mistake.id);
+                                await ref
+                                    .read(mistakeProvider.notifier)
+                                    .deleteMistake(mistake.id);
                               },
                             ),
                           )),
@@ -191,7 +190,8 @@ class LectureScreen extends ConsumerWidget {
     );
   }
 
-  void _showAddContentDialog(BuildContext context, WidgetRef ref, String lectureId) {
+  void _showAddContentDialog(
+      BuildContext context, WidgetRef ref, String lectureId) {
     final contentController = TextEditingController();
 
     showDialog(
@@ -272,4 +272,3 @@ class LectureScreen extends ConsumerWidget {
     );
   }
 }
-

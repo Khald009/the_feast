@@ -5,6 +5,11 @@ import '../models/content.dart';
 import '../models/mistake.dart';
 import '../providers/mistake_provider.dart';
 import '../providers/user_progress_provider.dart';
+import '../providers/derived_providers.dart';
+import '../core/study_engine.dart';
+import '../widgets/comparison_result.dart';
+import '../widgets/sentence_view.dart';
+import '../widgets/memorization_input.dart';
 
 class StudyScreen extends ConsumerStatefulWidget {
   final Lecture lecture;
@@ -17,7 +22,6 @@ class StudyScreen extends ConsumerStatefulWidget {
 }
 
 class _StudyScreenState extends ConsumerState<StudyScreen> {
-  late final List<String> sentences;
   int currentIndex = 0;
   bool isMemorizationMode = false;
   bool hasSubmitted = false;
@@ -27,112 +31,13 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
   final Set<int> importantIndexes = {};
   final Set<int> memorizedIndexes = {};
 
-  @override
-  void initState() {
-    super.initState();
-    sentences = _buildSentences(widget.contents);
-  }
+  List<String> get sentences =>
+      ref.watch(studySentencesProvider(widget.lecture.id));
 
   @override
   void dispose() {
     memorizationController.dispose();
     super.dispose();
-  }
-
-  List<String> _buildSentences(List<Content> contents) {
-    final rawText = contents
-        .where((content) => content.type == ContentType.text)
-        .map((content) => content.data.trim())
-        .where((text) => text.isNotEmpty)
-        .join(' ');
-
-    final split = rawText.split(RegExp(r'(?<=[.!?])\s+'));
-    return split.map((sentence) => sentence.trim()).where((sentence) => sentence.isNotEmpty).toList();
-  }
-
-  List<String> _tokenize(String sentence) {
-    return sentence
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((word) => word.isNotEmpty)
-        .toList();
-  }
-
-  String _normalize(String word) {
-    final cleaned = word.toLowerCase().replaceAll(RegExp(r"[^a-z0-9']+"), '');
-    return cleaned;
-  }
-
-  bool _wordsMatch(String source, String input) {
-    return _normalize(source) == _normalize(input);
-  }
-
-  List<WordComparison> _compareSentence(String sentence, String userInput) {
-    final sourceWords = _tokenize(sentence);
-    final inputWords = _tokenize(userInput);
-    final results = <WordComparison>[];
-
-    var sourceIndex = 0;
-    var inputIndex = 0;
-
-    while (sourceIndex < sourceWords.length && inputIndex < inputWords.length) {
-      final sourceWord = sourceWords[sourceIndex];
-      final inputWord = inputWords[inputIndex];
-
-      if (_wordsMatch(sourceWord, inputWord)) {
-        results.add(WordComparison(sourceWord, true, inputWord));
-        sourceIndex += 1;
-        inputIndex += 1;
-        continue;
-      }
-
-      if (inputIndex + 1 < inputWords.length && _wordsMatch(sourceWord, inputWords[inputIndex + 1])) {
-        inputIndex += 1;
-        continue;
-      }
-
-      if (sourceIndex + 1 < sourceWords.length && _wordsMatch(sourceWords[sourceIndex + 1], inputWord)) {
-        results.add(WordComparison(sourceWord, false, inputWord));
-        sourceIndex += 1;
-        continue;
-      }
-
-      if (sourceIndex + 2 < sourceWords.length && _wordsMatch(sourceWords[sourceIndex + 2], inputWord)) {
-        results.add(WordComparison(sourceWord, false, inputWord));
-        results.add(WordComparison(sourceWords[sourceIndex + 1], false, null));
-        sourceIndex += 2;
-        continue;
-      }
-
-      results.add(WordComparison(sourceWord, false, inputWord));
-      sourceIndex += 1;
-      inputIndex += 1;
-    }
-
-    while (sourceIndex < sourceWords.length) {
-      results.add(WordComparison(sourceWords[sourceIndex], false, null));
-      sourceIndex += 1;
-    }
-
-    return results;
-  }
-
-  double _calculateAccuracy(List<WordComparison> comparisons) {
-    if (comparisons.isEmpty) return 0.0;
-    final correct = comparisons.where((item) => item.correct).length;
-    return correct / comparisons.length;
-  }
-
-  String _getFeedbackMessage(double accuracy) {
-    if (accuracy >= 0.9) return 'Excellent! 🎉';
-    if (accuracy >= 0.7) return 'Good! Keep practicing';
-    return 'Needs Improvement. Try again';
-  }
-
-  Color _getFeedbackColor(double accuracy) {
-    if (accuracy >= 0.9) return Colors.green;
-    if (accuracy >= 0.7) return Colors.blue;
-    return Colors.orange;
   }
 
   void _startMemorization() {
@@ -156,9 +61,13 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
   Future<void> _submitMemorization() async {
     final currentSentence = _currentSentence;
     final input = memorizationController.text.trim();
-    final comparisons = _compareSentence(currentSentence, input);
-    final accuracy = _calculateAccuracy(comparisons);
-    final wrongWords = comparisons.where((item) => !item.correct).map((item) => item.sourceWord).toSet().toList();
+    final comparisons = StudyEngine.compareSentence(currentSentence, input);
+    final accuracy = StudyEngine.calculateAccuracy(comparisons);
+    final wrongWords = comparisons
+        .where((item) => !item.correct)
+        .map((item) => item.sourceWord)
+        .toSet()
+        .toList();
 
     // Track accuracy in UserProgress
     await ref.read(userProgressProvider.notifier).trackAccuracy(
@@ -174,7 +83,9 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
 
     if (wrongWords.isNotEmpty) {
       final existing = ref.read(mistakeProvider).any(
-            (m) => m.lectureId == widget.lecture.id && m.description == currentSentence,
+            (m) =>
+                m.lectureId == widget.lecture.id &&
+                m.description == currentSentence,
           );
       if (!existing) {
         final mistake = Mistake(
@@ -243,136 +154,18 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
     });
   }
 
-  Set<int> _savedWrongSentenceIndexes(List<Mistake> mistakes) {
-    final wrongIndexes = <int>{};
-    for (var entry in sentences.asMap().entries) {
-      final sentence = entry.value;
-      if (mistakes.any((m) => m.lectureId == widget.lecture.id && m.description == sentence)) {
-        wrongIndexes.add(entry.key);
-      }
-    }
-    return wrongIndexes;
-  }
+  List<int> get _activeSentenceIndexes => StudyEngine.activeSentenceIndexes(
+        sentences: sentences,
+        retryOnly: retryOnly,
+        mistakes: ref.watch(mistakeProvider),
+        progressItems: ref.watch(userProgressProvider),
+        lectureId: widget.lecture.id,
+      );
 
-  List<int> _getSortedActiveSentenceIndexes(List<int> baseIndexes, Map<String, dynamic>? sentenceAccuracies) {
-    if (!retryOnly || sentenceAccuracies == null) return baseIndexes;
-
-    return baseIndexes
-      ..sort((a, b) {
-        final accuracyA = (sentenceAccuracies[sentences[a]] as num?)?.toDouble() ?? 1.0;
-        final accuracyB = (sentenceAccuracies[sentences[b]] as num?)?.toDouble() ?? 1.0;
-        return accuracyA.compareTo(accuracyB); // Ascending: worst first
-      });
-  }
-
-  List<int> get _activeSentenceIndexes {
-    final allIndexes = List<int>.generate(sentences.length, (index) => index);
-    if (!retryOnly) return allIndexes;
-
-    final mistakes = ref.watch(mistakeProvider);
-    final wrongIndexes = _savedWrongSentenceIndexes(mistakes).toList()..sort();
-
-    final progress = ref.watch(userProgressProvider);
-    final lectureProgress = progress.firstWhere(
-      (p) => p.lectureId == widget.lecture.id,
-      orElse: () => null as dynamic,
-    );
-
-    final sentenceAccuracies = (lectureProgress as dynamic)?.sentenceAccuracies as Map<String, dynamic>?;
-    return _getSortedActiveSentenceIndexes(wrongIndexes, sentenceAccuracies);
-  }
-
-  int get _currentSentenceIndex {
-    final indexes = _activeSentenceIndexes;
-    if (indexes.isEmpty) return 0;
-    return indexes[currentIndex.clamp(0, indexes.length - 1)];
-  }
+  int get _currentSentenceIndex =>
+      StudyEngine.clampSentenceIndex(currentIndex, _activeSentenceIndexes);
 
   String get _currentSentence => sentences[_currentSentenceIndex];
-
-  Widget _buildComparisonResult() {
-    if (!hasSubmitted) return const SizedBox.shrink();
-    if (wordComparisons.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final accuracy = _calculateAccuracy(wordComparisons);
-    final correctCount = wordComparisons.where((item) => item.correct).length;
-    final wrongCount = wordComparisons.where((item) => !item.correct).length;
-    final accuracyPercentage = (accuracy * 100).toStringAsFixed(0);
-    final feedback = _getFeedbackMessage(accuracy);
-    final feedbackColor = _getFeedbackColor(accuracy);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16.0),
-          decoration: BoxDecoration(
-            color: feedbackColor.withAlpha(25),
-            border: Border.all(color: feedbackColor, width: 2),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Accuracy: $accuracyPercentage%',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: feedbackColor),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '$correctCount correct / $wrongCount wrong words',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: feedbackColor),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                feedback,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: feedbackColor),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Word comparison:',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12.0),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: wordComparisons.map((item) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-                decoration: BoxDecoration(
-                  color: item.correct ? Colors.green.shade100 : Colors.red.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  item.sourceWord,
-                  style: TextStyle(
-                    color: item.correct ? Colors.green.shade800 : Colors.red.shade800,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -405,67 +198,22 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
                           ),
                           OutlinedButton(
                             onPressed: _toggleRetryMode,
-                            child: Text(retryOnly ? 'All Sentences' : 'Retry Wrong'),
+                            child: Text(
+                                retryOnly ? 'All Sentences' : 'Retry Wrong'),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
                       if (!isMemorizationMode)
                         Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(16.0),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surfaceVariant,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: SingleChildScrollView(
-                              child: Text(
-                                _currentSentence,
-                                style: Theme.of(context).textTheme.bodyLarge,
-                              ),
-                            ),
-                          ),
+                          child: SentenceView(sentence: _currentSentence),
                         )
                       else
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                'Type the sentence from memory:',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: 12),
-                              Expanded(
-                                child: TextField(
-                                  controller: memorizationController,
-                                  maxLines: null,
-                                  expands: true,
-                                  decoration: const InputDecoration(
-                                    border: OutlineInputBorder(),
-                                    hintText: 'Remember and type the sentence here',
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: _submitMemorization,
-                                      child: const Text('Submit'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: _cancelMemorization,
-                                      child: const Text('Cancel'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                          child: MemorizationInput(
+                            controller: memorizationController,
+                            onSubmit: _submitMemorization,
+                            onCancel: _cancelMemorization,
                           ),
                         ),
                       if (!isMemorizationMode)
@@ -477,7 +225,12 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
                           ),
                         ),
                       if (isMemorizationMode) const SizedBox(height: 16),
-                      _buildComparisonResult(),
+                      if (hasSubmitted && wordComparisons.isNotEmpty)
+                        ComparisonResult(
+                          comparisons: wordComparisons,
+                          accuracy:
+                              StudyEngine.calculateAccuracy(wordComparisons),
+                        ),
                       const SizedBox(height: 16),
                       Row(
                         children: [
@@ -485,9 +238,14 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
                             child: ElevatedButton.icon(
                               onPressed: _toggleImportant,
                               icon: Icon(
-                                importantIndexes.contains(_currentSentenceIndex) ? Icons.star : Icons.star_border,
+                                importantIndexes.contains(_currentSentenceIndex)
+                                    ? Icons.star
+                                    : Icons.star_border,
                               ),
-                              label: Text(importantIndexes.contains(_currentSentenceIndex) ? 'Unmark Important' : 'Mark Important'),
+                              label: Text(importantIndexes
+                                      .contains(_currentSentenceIndex)
+                                  ? 'Unmark Important'
+                                  : 'Mark Important'),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -495,9 +253,14 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
                             child: ElevatedButton.icon(
                               onPressed: _toggleMemorized,
                               icon: Icon(
-                                memorizedIndexes.contains(_currentSentenceIndex) ? Icons.check_circle : Icons.check_circle_outline,
+                                memorizedIndexes.contains(_currentSentenceIndex)
+                                    ? Icons.check_circle
+                                    : Icons.check_circle_outline,
                               ),
-                              label: Text(memorizedIndexes.contains(_currentSentenceIndex) ? 'Unmark Memorized' : 'Mark Memorized'),
+                              label: Text(memorizedIndexes
+                                      .contains(_currentSentenceIndex)
+                                  ? 'Unmark Memorized'
+                                  : 'Mark Memorized'),
                             ),
                           ),
                         ],
@@ -523,7 +286,9 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
                     ],
                   )
                 : Center(
-                    child: Text(retryOnly ? 'No wrong sentences saved yet.' : 'No text content available for study mode.'),
+                    child: Text(retryOnly
+                        ? 'No wrong sentences saved yet.'
+                        : 'No text content available for study mode.'),
                   )
             : const Center(
                 child: Text('No text content available for study mode.'),
@@ -531,12 +296,4 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
       ),
     );
   }
-}
-
-class WordComparison {
-  final String sourceWord;
-  final bool correct;
-  final String? typedWord;
-
-  WordComparison(this.sourceWord, this.correct, this.typedWord);
 }

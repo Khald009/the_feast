@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/subject_provider.dart';
 import '../models/subject.dart';
-import 'lecture_screen.dart';
+import '../core/navigation/navigation_helper.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -40,12 +40,8 @@ class HomeScreen extends ConsumerWidget {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(16.0),
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => LectureScreen(subject: subject),
-                                ),
-                              );
+                              NavigationHelper.openLectureScreen(
+                                  context, subject);
                             },
                             child: Padding(
                               padding: const EdgeInsets.all(16.0),
@@ -53,16 +49,21 @@ class HomeScreen extends ConsumerWidget {
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           subject.name,
-                                          style: Theme.of(context).textTheme.titleMedium,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium,
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
                                           subject.description,
-                                          style: Theme.of(context).textTheme.bodyMedium,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium,
                                         ),
                                       ],
                                     ),
@@ -70,7 +71,9 @@ class HomeScreen extends ConsumerWidget {
                                   IconButton(
                                     icon: const Icon(Icons.delete_outline),
                                     onPressed: () async {
-                                      await ref.read(subjectProvider.notifier).deleteSubject(subject.id);
+                                      await ref
+                                          .read(subjectProvider.notifier)
+                                          .deleteSubject(subject.id);
                                     },
                                   ),
                                 ],

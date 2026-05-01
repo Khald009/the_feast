@@ -4,10 +4,13 @@ class UserProgress {
   final double progress; // e.g., 0.0 to 1.0 for completion percentage
   final DateTime lastStudied;
   final int mistakesCount;
-  final double lastAccuracy; // Accuracy of last memorization attempt (0.0 to 1.0)
+  final double
+      lastAccuracy; // Accuracy of last memorization attempt (0.0 to 1.0)
   final int totalAttempts; // Total memorization attempts
-  final Map<String, dynamic>? sentenceAccuracies; // Map of sentence to accuracy score (e.g. {"sentence": 0.85})
-  final Map<String, dynamic>? additionalData; // For future extensions like spaced repetition intervals
+  final Map<String, double>?
+      sentenceAccuracies; // Map of sentence to accuracy score (e.g. {"sentence": 0.85})
+  final Map<String, dynamic>?
+      additionalData; // For future extensions like spaced repetition intervals
 
   const UserProgress({
     required this.id,
@@ -30,7 +33,7 @@ class UserProgress {
       mistakesCount: json['mistakesCount'] as int,
       lastAccuracy: (json['lastAccuracy'] as num?)?.toDouble() ?? 0.0,
       totalAttempts: json['totalAttempts'] as int? ?? 0,
-      sentenceAccuracies: json['sentenceAccuracies'] as Map<String, dynamic>?,
+      sentenceAccuracies: _parseSentenceAccuracies(json['sentenceAccuracies']),
       additionalData: json['additionalData'] as Map<String, dynamic>?,
     );
   }
@@ -49,6 +52,20 @@ class UserProgress {
     };
   }
 
+  /// Safely parse sentence accuracies with type checking
+  static Map<String, double>? _parseSentenceAccuracies(dynamic json) {
+    if (json == null) return null;
+    if (json is! Map) return null;
+
+    final result = <String, double>{};
+    json.forEach((key, value) {
+      if (key is String && value is num) {
+        result[key] = value.toDouble();
+      }
+    });
+    return result.isEmpty ? null : result;
+  }
+
   UserProgress copyWith({
     String? id,
     String? lectureId,
@@ -57,7 +74,7 @@ class UserProgress {
     int? mistakesCount,
     double? lastAccuracy,
     int? totalAttempts,
-    Map<String, dynamic>? sentenceAccuracies,
+    Map<String, double>? sentenceAccuracies,
     Map<String, dynamic>? additionalData,
   }) {
     return UserProgress(

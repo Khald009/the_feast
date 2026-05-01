@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/lecture_provider.dart';
 import '../providers/subject_provider.dart';
-import '../providers/user_progress_provider.dart';
+import '../providers/derived_providers.dart';
 import '../models/subject.dart';
-import 'lecture_screen.dart';
+import '../core/navigation/navigation_helper.dart';
 
 class StudyOverviewScreen extends ConsumerWidget {
   const StudyOverviewScreen({super.key});
@@ -13,7 +13,6 @@ class StudyOverviewScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final lectures = ref.watch(lectureProvider);
     final subjects = ref.watch(subjectProvider);
-    final progressItems = ref.watch(userProgressProvider);
 
     if (lectures.isEmpty) {
       return const Center(
@@ -30,30 +29,32 @@ class StudyOverviewScreen extends ConsumerWidget {
           final lecture = lectures[index];
           final subject = subjects.firstWhere(
             (subject) => subject.id == lecture.subjectId,
-            orElse: () => Subject(id: lecture.subjectId, name: 'Unknown', description: '', createdAt: DateTime.now()),
+            orElse: () => Subject(
+                id: lecture.subjectId,
+                name: 'Unknown',
+                description: '',
+                createdAt: DateTime.now()),
           );
-          final lectureProgressList = progressItems.where((item) => item.lectureId == lecture.id).toList();
-          final progress = lectureProgressList.isNotEmpty ? lectureProgressList.first.progress : 0.0;
+          final lectureProgress =
+              ref.watch(lectureProgressProvider(lecture.id));
+          final progress = lectureProgress?.progress ?? 0.0;
 
           return Card(
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => LectureScreen(subject: subject),
-                  ),
-                );
+                NavigationHelper.openLectureScreen(context, subject);
               },
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(lecture.title, style: Theme.of(context).textTheme.titleMedium),
+                    Text(lecture.title,
+                        style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
-                    Text(subject.name, style: Theme.of(context).textTheme.bodyMedium),
+                    Text(subject.name,
+                        style: Theme.of(context).textTheme.bodyMedium),
                     const SizedBox(height: 12),
                     LinearProgressIndicator(value: progress),
                     const SizedBox(height: 8),
@@ -67,12 +68,8 @@ class StudyOverviewScreen extends ConsumerWidget {
                         ),
                         TextButton(
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => LectureScreen(subject: subject),
-                              ),
-                            );
+                            NavigationHelper.openLectureScreen(
+                                context, subject);
                           },
                           child: const Text('Open'),
                         ),

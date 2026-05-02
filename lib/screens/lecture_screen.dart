@@ -175,7 +175,9 @@ class LectureScreen extends ConsumerWidget {
                 final lecture = Lecture(
                   id: DateTime.now().toString(),
                   subjectId: subject.id,
-                  title: titleController.text,
+                  lectureNumber: ref.read(lectureProvider).where((l) => l.subjectId == subject.id).length + 1,
+                  lectureName: titleController.text,
+                  sourceContent: '',
                   contentIds: [],
                   createdAt: DateTime.now(),
                 );

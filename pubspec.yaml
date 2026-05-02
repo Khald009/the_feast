@@ -58,6 +58,9 @@ dependencies:
   # OpenAI API: For AI-powered content analysis, summarization, and study recommendations.
   openai_dart: ^0.3.0
 
+  # Text-to-speech: For audio repetition and karaoke highlighting.
+  flutter_tts: ^3.6.4
+
   # Secure storage: For storing sensitive data like API keys securely.
   flutter_secure_storage: ^9.0.0
 

@@ -24,6 +24,8 @@ abstract class AIProcessingService {
   Future<List<String>> extractSections(String text);
   Future<Map<String, double>> calculateSentenceDifficulties(String text);
   Future<List<String>> recommendStudyOrder(String text, Map<String, double> userPerformance);
+  Future<String> translateText(String text, String targetLanguage);
+  Future<String> generateMindMap(String text);
 
   // Error handling
   Future<bool> isServiceAvailable();
@@ -126,6 +128,24 @@ class MockAIProcessingService implements AIProcessingService {
     });
 
     return sentences;
+  }
+
+  @override
+  Future<String> translateText(String text, String targetLanguage) async {
+    return '[$targetLanguage] $text';
+  }
+
+  @override
+  Future<String> generateMindMap(String text) async {
+    final sentences = text.split('.').where((s) => s.trim().isNotEmpty).take(6).toList();
+    final mindMap = StringBuffer('Mind Map:\n');
+    for (var i = 0; i < sentences.length; i++) {
+      mindMap.writeln('- ${sentences[i].trim()}');
+      if (i < sentences.length - 1) {
+        mindMap.writeln('  - Related idea ${i + 1}');
+      }
+    }
+    return mindMap.toString();
   }
 
   @override
@@ -284,16 +304,17 @@ JSON:''';
       return jsonResponse['summary'] ?? 'Unable to generate summary';
     } catch (e) {
       // Fallback to simple extraction
-      return content.split('"summary":')[1]?.split('"')[1] ?? 'Unable to generate summary';
+      final parts = content.split('"summary":');
+      if (parts.length > 1) {
+        final summaryParts = parts[1].split('"');
+        return summaryParts.length > 1 ? summaryParts[1] : 'Unable to generate summary';
+      }
+      return 'Unable to generate summary';
     }
   }
 
   @override
   Future<List<String>> extractKeySentences(String text) async {
-    // Use the same comprehensive analysis as generateSummary
-    final summaryResponse = await generateSummary(text);
-    // Since generateSummary now returns structured JSON, we need to parse it
-    // But for backward compatibility, let's create a separate method
     final prompt = '''
 Extract the 3-5 most important sentences from the following educational content. Return as JSON array:
 
@@ -447,6 +468,56 @@ Recommended order (one sentence per line):''';
       });
       return sentences;
     }
+  }
+
+  @override
+  Future<String> translateText(String text, String targetLanguage) async {
+    final prompt = '''
+Translate the following sentence into $targetLanguage, preserving meaning and academic tone:
+
+$text
+
+Translation:''';
+
+    final response = await _client.createChatCompletion(
+      request: CreateChatCompletionRequest(
+        model: ChatCompletionModel.modelId(_model),
+        messages: [
+          ChatCompletionMessage.user(
+            content: ChatCompletionUserMessageContent.string(prompt),
+          ),
+        ],
+        maxTokens: 300,
+        temperature: 0.2,
+      ),
+    );
+
+    return response.choices.first.message.content?.toString() ?? text;
+  }
+
+  @override
+  Future<String> generateMindMap(String text) async {
+    final prompt = '''
+Create a concise mind map structure for the following educational content. Return only markdown or JSON format with top-level ideas and subtopics:
+
+$text
+
+Mind map:''';
+
+    final response = await _client.createChatCompletion(
+      request: CreateChatCompletionRequest(
+        model: ChatCompletionModel.modelId(_model),
+        messages: [
+          ChatCompletionMessage.user(
+            content: ChatCompletionUserMessageContent.string(prompt),
+          ),
+        ],
+        maxTokens: 400,
+        temperature: 0.3,
+      ),
+    );
+
+    return response.choices.first.message.content?.toString() ?? 'Unable to generate mind map';
   }
 
   @override

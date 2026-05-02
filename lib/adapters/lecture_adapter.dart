@@ -14,25 +14,31 @@ class LectureAdapter extends TypeAdapter<Lecture> {
     return Lecture(
       id: fields[0] as String,
       subjectId: fields[1] as String,
-      title: fields[2] as String,
-      contentIds: List<String>.from(fields[3] as List),
-      createdAt: fields[4] as DateTime,
+      lectureNumber: fields[2] as int? ?? 1,
+      lectureName: fields[3] as String? ?? '',
+      sourceContent: fields[4] as String? ?? '',
+      contentIds: List<String>.from(fields[5] as List? ?? []),
+      createdAt: fields[6] as DateTime,
     );
   }
 
   @override
   void write(BinaryWriter writer, Lecture obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.subjectId)
       ..writeByte(2)
-      ..write(obj.title)
+      ..write(obj.lectureNumber)
       ..writeByte(3)
-      ..write(obj.contentIds)
+      ..write(obj.lectureName)
       ..writeByte(4)
+      ..write(obj.sourceContent)
+      ..writeByte(5)
+      ..write(obj.contentIds)
+      ..writeByte(6)
       ..write(obj.createdAt);
   }
 }

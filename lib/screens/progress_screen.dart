@@ -27,7 +27,15 @@ class ProgressScreen extends ConsumerWidget {
           final progress = progressItems[index];
           final lecture = lectures.firstWhere(
             (lecture) => lecture.id == progress.lectureId,
-            orElse: () => Lecture(id: progress.lectureId, subjectId: '', title: 'Lecture', contentIds: const [], createdAt: DateTime.now()),
+            orElse: () => Lecture(
+              id: progress.lectureId,
+              subjectId: '',
+              lectureNumber: 1,
+              lectureName: 'Lecture',
+              sourceContent: '',
+              contentIds: const [],
+              createdAt: DateTime.now(),
+            ),
           );
 
           return Card(

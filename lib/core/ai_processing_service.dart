@@ -26,6 +26,7 @@ abstract class AIProcessingService {
   Future<List<String>> recommendStudyOrder(String text, Map<String, double> userPerformance);
   Future<String> translateText(String text, String targetLanguage);
   Future<String> generateMindMap(String text);
+  Future<String> cleanAndFormatText(String rawText);
 
   // Error handling
   Future<bool> isServiceAvailable();
@@ -146,6 +147,15 @@ class MockAIProcessingService implements AIProcessingService {
       }
     }
     return mindMap.toString();
+  }
+
+  @override
+  Future<String> cleanAndFormatText(String rawText) async {
+    // Simple cleaning: remove extra whitespace, fix line breaks
+    return rawText
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'\n\s*\n'), '\n\n')
+        .trim();
   }
 
   @override
@@ -518,6 +528,39 @@ Mind map:''';
     );
 
     return response.choices.first.message.content?.toString() ?? 'Unable to generate mind map';
+  }
+
+  @override
+  Future<String> cleanAndFormatText(String rawText) async {
+    final prompt = '''
+Clean and format the following OCR-extracted text. Fix any OCR errors, improve readability, and structure it properly for educational content:
+
+Raw OCR Text:
+$rawText
+
+Instructions:
+- Correct any obvious OCR mistakes (e.g., "th1s" -> "this", "rn" -> "m")
+- Fix line breaks and paragraph structure
+- Remove excessive whitespace
+- Maintain the original meaning and content
+- Format as clean, readable text
+
+Cleaned Text:''';
+
+    final response = await _client.createChatCompletion(
+      request: CreateChatCompletionRequest(
+        model: ChatCompletionModel.modelId(_model),
+        messages: [
+          ChatCompletionMessage.user(
+            content: ChatCompletionUserMessageContent.string(prompt),
+          ),
+        ],
+        maxTokens: 1000,
+        temperature: 0.1,
+      ),
+    );
+
+    return response.choices.first.message.content?.toString() ?? rawText;
   }
 
   @override

@@ -34,9 +34,10 @@ final contentProcessingServiceProvider = Provider<ContentProcessingService>(
   (ref) => MockContentProcessingService(),
 );
 
-final ocrServiceProvider = Provider<OCRService>(
-  (ref) => MockOCRService(),
-);
+final ocrServiceProvider = FutureProvider<OCRService>((ref) async {
+  final aiService = await ref.watch(aiProcessingServiceProvider.future);
+  return GoogleMLKitOCRService(aiService);
+});
 
 final ttsServiceProvider = Provider<TTSService>(
   (ref) => MockTTSService(),

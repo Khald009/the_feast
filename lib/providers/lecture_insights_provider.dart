@@ -9,7 +9,7 @@ final lectureInsightsProvider =
     FutureProvider.family<LectureInsights, Lecture>((ref, lecture) async {
   final contents = ref.watch(contentsByLectureProvider(lecture.id));
   final contentService = ref.read(contentProcessingServiceProvider);
-  final aiService = ref.read(aiProcessingServiceProvider);
+  final aiService = await ref.read(aiProcessingServiceProvider.future);
 
   final rawText = contents
       .where((c) => c.type == ContentType.text)

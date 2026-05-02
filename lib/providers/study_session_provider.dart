@@ -2,6 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/ai_processing_service.dart';
 import '../core/tts_service.dart';
 import '../core/translation_service.dart';
+import '../core/study_session_service.dart';
+import '../models/lecture.dart';
+import '../models/user_progress.dart';
+import '../models/mistake.dart';
 import 'service_providers.dart';
 
 enum StudyMode { explanation, memorization, translation }
@@ -17,6 +21,9 @@ class StudySessionState {
   final double accuracy;
   final bool isSpeaking;
   final int currentWordIndex;
+  final List<int> activeSentenceIndexes;
+  final int currentSentenceIndex;
+  final Map<String, dynamic> sessionStats;
 
   const StudySessionState({
     this.mode = StudyMode.explanation,
@@ -27,6 +34,9 @@ class StudySessionState {
     this.accuracy = 0.0,
     this.isSpeaking = false,
     this.currentWordIndex = -1,
+    this.activeSentenceIndexes = const [],
+    this.currentSentenceIndex = 0,
+    this.sessionStats = const {},
   });
 
   StudySessionState copyWith({
@@ -38,6 +48,9 @@ class StudySessionState {
     double? accuracy,
     bool? isSpeaking,
     int? currentWordIndex,
+    List<int>? activeSentenceIndexes,
+    int? currentSentenceIndex,
+    Map<String, dynamic>? sessionStats,
   }) {
     return StudySessionState(
       mode: mode ?? this.mode,
@@ -48,6 +61,9 @@ class StudySessionState {
       accuracy: accuracy ?? this.accuracy,
       isSpeaking: isSpeaking ?? this.isSpeaking,
       currentWordIndex: currentWordIndex ?? this.currentWordIndex,
+      activeSentenceIndexes: activeSentenceIndexes ?? this.activeSentenceIndexes,
+      currentSentenceIndex: currentSentenceIndex ?? this.currentSentenceIndex,
+      sessionStats: sessionStats ?? this.sessionStats,
     );
   }
 }
@@ -62,6 +78,34 @@ class StudySessionNotifier extends StateNotifier<StudySessionState> {
     required this.ttsService,
     required this.translationService,
   }) : super(const StudySessionState());
+
+  void initializeSession({
+    required Lecture lecture,
+    required List<String> sentences,
+    required List<UserProgress> progressItems,
+    required List<Mistake> mistakes,
+  }) {
+    final activeIndexes = StudySessionService.getActiveSentenceIndexes(
+      lecture: lecture,
+      sentences: sentences,
+      retryWrongOnly: state.retrainMode == RetrainMode.wrongOnly,
+      progressItems: progressItems,
+      mistakes: mistakes,
+    );
+
+    final stats = StudySessionService.getSessionStats(
+      lecture: lecture,
+      progressItems: progressItems,
+      mistakes: mistakes,
+    );
+
+    state = state.copyWith(
+      activeSentenceIndexes: activeIndexes,
+      sessionStats: stats,
+      currentSentenceIndex: 0,
+      currentSentence: sentences.isNotEmpty ? sentences[activeIndexes.first] : '',
+    );
+  }
 
   void setMode(StudyMode mode) {
     state = state.copyWith(mode: mode);
@@ -78,6 +122,32 @@ class StudySessionNotifier extends StateNotifier<StudySessionState> {
 
   void setTypedAnswer(String input) {
     state = state.copyWith(typedAnswer: input);
+  }
+
+  void nextSentence(List<String> sentences) {
+    final nextIndex = state.currentSentenceIndex + 1;
+    if (nextIndex < state.activeSentenceIndexes.length) {
+      final sentenceIndex = state.activeSentenceIndexes[nextIndex];
+      state = state.copyWith(
+        currentSentenceIndex: nextIndex,
+        currentSentence: sentences[sentenceIndex],
+        typedAnswer: '',
+        accuracy: 0.0,
+      );
+    }
+  }
+
+  void previousSentence(List<String> sentences) {
+    final prevIndex = state.currentSentenceIndex - 1;
+    if (prevIndex >= 0) {
+      final sentenceIndex = state.activeSentenceIndexes[prevIndex];
+      state = state.copyWith(
+        currentSentenceIndex: prevIndex,
+        currentSentence: sentences[sentenceIndex],
+        typedAnswer: '',
+        accuracy: 0.0,
+      );
+    }
   }
 
   Future<void> speakSentence() async {
@@ -113,8 +183,18 @@ class StudySessionNotifier extends StateNotifier<StudySessionState> {
 final studySessionProvider =
     StateNotifierProvider<StudySessionNotifier, StudySessionState>(
   (ref) => StudySessionNotifier(
-    aiService: ref.read(aiProcessingServiceProvider),
+    aiService: MockAIProcessingService(), // Temporary fallback
     ttsService: ref.read(ttsServiceProvider),
     translationService: ref.read(translationServiceProvider),
   ),
 );
+
+// Future provider that creates the notifier with real AI service
+final studySessionProviderAsync = FutureProvider<StudySessionNotifier>((ref) async {
+  final aiService = await ref.watch(aiProcessingServiceProvider.future);
+  return StudySessionNotifier(
+    aiService: aiService,
+    ttsService: ref.read(ttsServiceProvider),
+    translationService: ref.read(translationServiceProvider),
+  );
+});

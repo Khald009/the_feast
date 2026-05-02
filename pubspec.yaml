@@ -55,6 +55,12 @@ dependencies:
   # HTTP requests: For API calls (e.g., external summarization services or translation if needed).
   http: ^1.2.1
 
+  # OpenAI API: For AI-powered content analysis, summarization, and study recommendations.
+  openai_dart: ^0.3.0
+
+  # Secure storage: For storing sensitive data like API keys securely.
+  flutter_secure_storage: ^9.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

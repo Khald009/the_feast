@@ -3,10 +3,12 @@ import '../models/lecture.dart';
 import '../models/mistake.dart';
 import '../models/user_progress.dart';
 import '../models/content.dart';
+import '../core/ai_processing_service.dart';
 import 'lecture_provider.dart';
 import 'mistake_provider.dart';
 import 'user_progress_provider.dart';
 import 'content_provider.dart';
+import 'service_providers.dart';
 
 /// Provides a filtered list of lectures by subject ID
 /// Input: subjectId
@@ -80,4 +82,35 @@ final studySentencesProvider =
       .map((sentence) => sentence.trim())
       .where((sentence) => sentence.isNotEmpty)
       .toList();
+});
+
+// Memoized providers for expensive operations
+final lectureSentencesProvider = FutureProvider.family<List<String>, String>((ref, lectureId) async {
+  final contents = ref.watch(textContentsByLectureProvider(lectureId));
+  if (contents.isEmpty) return [];
+
+  final processingService = ref.watch(contentProcessingServiceProvider);
+  final allSentences = <String>[];
+
+  for (final content in contents) {
+    final processed = await processingService.analyzeContent(content);
+    allSentences.addAll(processed['sentences'] as List<String>);
+  }
+
+  return allSentences;
+});
+
+final lectureInsightsProvider = FutureProvider.family<LectureInsights, String>((ref, lectureId) async {
+  final sentences = await ref.watch(lectureSentencesProvider(lectureId).future);
+  if (sentences.isEmpty) {
+    return LectureInsights(
+      shortSummary: 'No content available',
+      keySentences: [],
+      sections: [],
+    );
+  }
+
+  final text = sentences.join('. ');
+  final aiService = await ref.watch(aiProcessingServiceProvider.future);
+  return aiService.generateInsights(text);
 });

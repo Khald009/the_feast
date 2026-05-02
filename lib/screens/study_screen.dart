@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/lecture.dart';
 import '../models/content.dart';
 import '../models/mistake.dart';
+import '../models/user_progress.dart';
 import '../providers/mistake_provider.dart';
 import '../providers/user_progress_provider.dart';
 import '../providers/derived_providers.dart';
@@ -175,6 +176,26 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
     final totalSentences = activeIndexes.length;
     final currentSentenceNumber = hasActiveSentences ? currentIndex + 1 : 0;
 
+    // Calculate progress stats
+    final progress = ref.watch(userProgressProvider).firstWhere(
+          (p) => p.lectureId == widget.lecture.id,
+          orElse: () => UserProgress(
+              id: 'progress_${widget.lecture.id}',
+              lectureId: widget.lecture.id,
+              progress: 0.0,
+              lastStudied: DateTime.now(),
+              mistakesCount: 0,
+              sentenceAccuracies: {}),
+        );
+    final avgAccuracy = progress.sentenceAccuracies?.isNotEmpty == true
+        ? progress.sentenceAccuracies!.values.reduce((a, b) => a + b) /
+            progress.sentenceAccuracies!.length
+        : 0.0;
+    final mistakeCount = ref
+        .watch(mistakeProvider)
+        .where((m) => m.lectureId == widget.lecture.id)
+        .length;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Study: ${widget.lecture.title}'),
@@ -186,6 +207,47 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Progress stats
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Progress',
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium),
+                              const SizedBox(height: 8),
+                              LinearProgressIndicator(
+                                value: totalSentences > 0
+                                    ? (currentIndex + 1) / totalSentences
+                                    : 0,
+                                backgroundColor: Colors.grey[300],
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  avgAccuracy > 0.8
+                                      ? Colors.green
+                                      : avgAccuracy > 0.6
+                                          ? Colors.orange
+                                          : Colors.red,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                      'Sentence ${currentIndex + 1} of $totalSentences'),
+                                  Text(
+                                      'Avg Accuracy: ${(avgAccuracy * 100).toStringAsFixed(1)}%'),
+                                ],
+                              ),
+                              Text('Mistakes: $mistakeCount'),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(

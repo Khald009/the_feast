@@ -1,27 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/subject_provider.dart';
 import 'home_screen.dart';
-import 'study_overview_screen.dart';
+import 'onboarding_screen.dart';
+import 'study_dashboard_screen.dart';
 import 'progress_screen.dart';
 
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   int _selectedIndex = 0;
 
   static const List<String> _titles = [
     'Subjects',
-    'Study',
+    'Dashboard',
     'Progress',
   ];
 
   static const List<Widget> _pages = [
     HomeScreen(),
-    StudyOverviewScreen(),
+    StudyDashboardScreen(),
     ProgressScreen(),
   ];
 
@@ -33,6 +36,11 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final subjects = ref.watch(subjectProvider);
+    if (subjects.isEmpty) {
+      return const OnboardingScreen();
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_titles[_selectedIndex]),
@@ -43,8 +51,10 @@ class _AppShellState extends State<AppShell> {
         onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.menu_book_outlined), label: 'Study'),
-          NavigationDestination(icon: Icon(Icons.bar_chart_outlined), label: 'Progress'),
+          NavigationDestination(
+              icon: Icon(Icons.menu_book_outlined), label: 'Study'),
+          NavigationDestination(
+              icon: Icon(Icons.bar_chart_outlined), label: 'Progress'),
         ],
       ),
     );

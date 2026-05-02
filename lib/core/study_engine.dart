@@ -141,8 +141,18 @@ class StudyEngine {
     final sentenceAccuracies =
         _normalizeSentenceAccuracies(lectureProgress?.sentenceAccuracies);
 
-    return getSortedActiveSentenceIndexes(
-        wrongIndexes, sentences, sentenceAccuracies);
+    // Build mistake counts map
+    final mistakeCounts = <String, int>{};
+    for (final mistake in mistakes.where((m) => m.lectureId == lectureId)) {
+      final sentence = mistake.description;
+      mistakeCounts[sentence] = (mistakeCounts[sentence] ?? 0) + 1;
+    }
+
+    return sortSentencesByDifficulty(
+      wrongIndexes.map((i) => sentences[i]).toList(),
+      sentenceAccuracies ?? {},
+      mistakeCounts,
+    ).map((i) => wrongIndexes[i]).toList();
   }
 
   static int clampSentenceIndex(int currentIndex, List<int> activeIndexes) {
@@ -164,5 +174,76 @@ class StudyEngine {
 
   static bool _wordsMatch(String source, String input) {
     return _normalize(source) == _normalize(input);
+  }
+
+  /// Calculate difficulty score for a sentence based on length, complexity, and mistake history
+  static double calculateDifficultyScore(
+    String sentence,
+    Map<String, double> sentenceAccuracies,
+    Map<String, int> mistakeCounts,
+  ) {
+    final words = _tokenize(sentence);
+    final wordCount = words.length;
+    final avgAccuracy = sentenceAccuracies[sentence] ?? 1.0;
+    final mistakeCount = mistakeCounts[sentence] ?? 0;
+
+    // Base difficulty from length (longer sentences are harder)
+    double difficulty = wordCount / 20.0; // Normalize around 20 words
+
+    // Adjust for accuracy (lower accuracy = higher difficulty)
+    difficulty += (1.0 - avgAccuracy) * 2.0;
+
+    // Adjust for mistake history (more mistakes = higher difficulty)
+    difficulty += mistakeCount * 0.1;
+
+    // Add complexity factors
+    final complexWords = words.where((w) => w.length > 8).length;
+    difficulty += complexWords * 0.05;
+
+    return difficulty.clamp(0.1, 5.0); // Clamp between 0.1 and 5.0
+  }
+
+  /// Sort sentence indexes by difficulty for retry mode
+  static List<int> sortSentencesByDifficulty(
+    List<String> sentences,
+    Map<String, double> sentenceAccuracies,
+    Map<String, int> mistakeCounts,
+  ) {
+    final indexedDifficulties = sentences.asMap().entries.map((entry) {
+      final index = entry.key;
+      final sentence = entry.value;
+      final difficulty =
+          calculateDifficultyScore(sentence, sentenceAccuracies, mistakeCounts);
+      return MapEntry(index, difficulty);
+    }).toList();
+
+    indexedDifficulties.sort((a, b) =>
+        b.value.compareTo(a.value)); // Sort descending (hardest first)
+    return indexedDifficulties.map((e) => e.key).toList();
+  }
+
+  /// Track wrong words frequency across sentences
+  static Map<String, int> trackWrongWords(
+    List<String> sourceSentences,
+    List<String> userInputs,
+  ) {
+    final wrongWords = <String, int>{};
+
+    for (var i = 0; i < sourceSentences.length && i < userInputs.length; i++) {
+      final sourceWords = _tokenize(sourceSentences[i]);
+
+      final comparison = compareSentence(sourceSentences[i], userInputs[i]);
+      for (var j = 0; j < comparison.length; j++) {
+        if (!comparison[j].correct) {
+          final sourceWord =
+              j < sourceWords.length ? _normalize(sourceWords[j]) : '';
+          if (sourceWord.isNotEmpty) {
+            wrongWords[sourceWord] = (wrongWords[sourceWord] ?? 0) + 1;
+          }
+        }
+      }
+    }
+
+    return wrongWords;
   }
 }
